@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PulseDesk — Trading Signal Scanner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0A0E1A;
+    --bg1: #0D1120;
+    --bg2: #111827;
+    --bg3: #161D2E;
+    --border: #1A2035;
+    --border2: #222D45;
+    --bull: #00FFA3;
+    --bull-dim: rgba(0,255,163,0.12);
+    --bull-glow: 0 0 20px rgba(0,255,163,0.25);
+    --bear: #FF4757;
+    --bear-dim: rgba(255,71,87,0.12);
+    --bear-glow: 0 0 20px rgba(255,71,87,0.25);
+    --amber: #FFB800;
+    --amber-dim: rgba(255,184,0,0.15);
+    --blue: #4D9EFF;
+    --text: #E8ECF4;
+    --text2: #8A97B4;
+    --text3: #4A5568;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Inter', sans-serif;
+  }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); overflow: hidden; }
+  #root { height: 100%; }
+
+  /* scrollbars */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-12px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes pulseGlow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  @keyframes tickUp {
+    0% { color: var(--bull); }
+    100% { color: var(--text); }
+  }
+  @keyframes tickDown {
+    0% { color: var(--bear); }
+    100% { color: var(--text); }
+  }
+  @keyframes scanLine {
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(100vh); }
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+  @keyframes drawerSlide {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  .app { display: grid; grid-template-rows: 44px 1fr 80px; height: 100vh; }
+  .topbar {
+    background: var(--bg1);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 0;
+    padding: 0;
+    position: relative; z-index: 100;
+  }
+  .logo-zone {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 16px;
+    border-right: 1px solid var(--border);
+    height: 100%;
+    min-width: 160px;
+  }
+  .logo-mark {
+    width: 20px; height: 20px;
+    position: relative;
+  }
+  .logo-mark svg { width: 100%; height: 100%; }
+  .logo-text { font-family: var(--mono); font-weight: 700; font-size: 13px; letter-spacing: 0.08em; color: var(--text); }
+  .logo-text span { color: var(--bull); }
+
+  .topbar-section {
+    display: flex; align-items: center; gap: 0;
+    height: 100%;
+    border-right: 1px solid var(--border);
+    padding: 0 16px;
+  }
+  .clock-block { display: flex; flex-direction: column; gap: 1px; }
+  .clock-label { font-size: 9px; font-weight: 500; letter-spacing: 0.1em; color: var(--text3); text-transform: uppercase; }
+  .clock-time { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text); }
+
+  .index-pill {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 10px;
+    margin: 0 6px;
+  }
+  .index-name { font-size: 10px; font-weight: 600; letter-spacing: 0.05em; color: var(--text2); text-transform: uppercase; }
+  .index-val { font-family: var(--mono); font-size: 12px; font-weight: 600; }
+  .index-chg { font-family: var(--mono); font-size: 10px; font-weight: 500; }
+
+  .risk-tag {
+    margin-left: auto;
+    margin-right: 8px;
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+    font-family: var(--mono);
+  }
+  .risk-dot { width: 6px; height: 6px; border-radius: 50%; animation: pulseGlow 1.5s ease-in-out infinite; }
+
+  .scan-badge {
+    display: flex; align-items: center; gap: 5px;
+    padding: 0 12px;
+    font-size: 10px; color: var(--text3); font-family: var(--mono);
+    border-left: 1px solid var(--border);
+    height: 100%;
+  }
+  .scan-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--bull); animation: pulseGlow 2s ease-in-out infinite; }
+
+  /* BODY */
+  .body { display: flex; overflow: hidden; position: relative; }
+
+  /* LEFT RAIL */
+  .left-rail {
+    width: 200px; min-width: 200px;
+    background: var(--bg1);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    display: flex; flex-direction: column; gap: 0;
+    padding-bottom: 16px;
+  }
+  .rail-section { border-bottom: 1px solid var(--border); padding: 12px; }
+  .rail-label { font-size: 9px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; }
+  .rail-btn {
+    display: block; width: 100%;
+    padding: 6px 8px;
+    background: transparent; border: none; cursor: pointer;
+    font-family: var(--sans); font-size: 11px; font-weight: 500; color: var(--text2);
+    text-align: left;
+    transition: color 0.15s, background 0.15s;
+  }
+  .rail-btn:hover { background: var(--bg3); color: var(--text); }
+  .rail-btn.active { background: var(--bg3); color: var(--bull); }
+  .rail-btn.active-bear { background: var(--bg3); color: var(--bear); }
+  .rail-btn.active-amber { background: var(--bg3); color: var(--amber); }
+
+  .strength-bar { display: flex; align-items: center; gap: 6px; padding: 5px 8px; cursor: pointer; }
+  .strength-bar:hover { background: var(--bg3); }
+  .strength-bar.active { background: var(--bg3); }
+  .strength-dots { display: flex; gap: 2px; }
+  .strength-dot { width: 8px; height: 8px; border: 1px solid var(--border2); }
+  .strength-dot.filled { background: var(--amber); border-color: var(--amber); }
+  .strength-label { font-size: 11px; color: var(--text2); }
+  .strength-bar.active .strength-label { color: var(--amber); }
+
+  /* MAIN */
+  .main { flex: 1; display: flex; overflow: hidden; }
+  .signal-board {
+    flex: 1;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .board-header {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+    background: var(--bg1);
+  }
+  .board-title { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text2); }
+  .count-badge {
+    font-family: var(--mono); font-size: 10px;
+    background: var(--bg3); border: 1px solid var(--border2);
+    padding: 2px 7px; color: var(--text2);
+  }
+  .sort-tabs { margin-left: auto; display: flex; gap: 0; }
+  .sort-tab {
+    padding: 3px 10px;
+    font-size: 10px; font-weight: 500; letter-spacing: 0.05em;
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text3); cursor: pointer; font-family: var(--sans);
+    transition: all 0.15s;
+  }
+  .sort-tab:first-child { border-right: none; }
+  .sort-tab.active { background: var(--bg3); color: var(--text); border-color: var(--border2); }
+
+  .signal-grid {
+    flex: 1; overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    padding: 0;
+    align-content: start;
+  }
+  /* wrapper cell */
+  .signal-grid > div { background: var(--bg); }
+
+  .signal-card {
+    background: var(--bg1);
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: background 0.15s;
+    animation: slideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+    overflow: hidden;
+  }
+  .signal-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .signal-card.bull::before { background: var(--bull); }
+  .signal-card.bear::before { background: var(--bear); }
+  .signal-card:hover { background: var(--bg2); }
+  .signal-card.selected { background: var(--bg3); outline: 1px solid var(--border2); }
+
+  .card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
+  .ticker-block {}
+  .ticker { font-family: var(--mono); font-size: 16px; font-weight: 700; letter-spacing: 0.02em; }
+  .company { font-size: 10px; color: var(--text3); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+  .dir-tag {
+    display: flex; align-items: center; gap: 4px;
+    padding: 3px 8px;
+    font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+  }
+  .dir-tag.bull { background: var(--bull-dim); color: var(--bull); }
+  .dir-tag.bear { background: var(--bear-dim); color: var(--bear); }
+
+  .card-mid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+  .card-stat {}
+  .stat-label { font-size: 9px; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; }
+  .stat-val { font-family: var(--mono); font-size: 12px; font-weight: 600; margin-top: 1px; }
+  .stat-val.bull { color: var(--bull); }
+  .stat-val.bear { color: var(--bear); }
+  .stat-val.amber { color: var(--amber); }
+
+  .card-bottom { display: flex; align-items: center; gap: 6px; }
+  .signal-type-tag {
+    font-size: 9px; font-weight: 600; letter-spacing: 0.06em;
+    padding: 2px 6px; border: 1px solid var(--border2); color: var(--text3); text-transform: uppercase;
+    font-family: var(--mono);
+  }
+  .strength-score {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .score-bar { display: flex; gap: 1px; }
+  .score-seg { width: 14px; height: 3px; background: var(--bg3); }
+  .score-seg.filled.bull { background: var(--bull); }
+  .score-seg.filled.bear { background: var(--bear); }
+  .score-num { font-family: var(--mono); font-size: 10px; color: var(--text2); }
+
+  .card-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 8px; padding-top: 8px;
+    border-top: 1px solid var(--border);
+  }
+  .time-ago { font-family: var(--mono); font-size: 9px; color: var(--text3); }
+  .tv-btn {
+    font-size: 9px; font-weight: 600; letter-spacing: 0.06em;
+    padding: 3px 8px;
+    background: var(--bg3); border: 1px solid var(--border2);
+    color: var(--text2); cursor: pointer; font-family: var(--mono);
+    text-transform: uppercase; text-decoration: none;
+    transition: all 0.15s;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .tv-btn:hover { border-color: var(--blue); color: var(--blue); }
+
+  /* DETAIL DRAWER */
+  .detail-drawer {
+    width: 420px;
+    background: var(--bg1);
+    border-left: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    animation: drawerSlide 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .drawer-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg);
+  }
+  .drawer-ticker { font-family: var(--mono); font-size: 18px; font-weight: 700; }
+  .drawer-company { font-size: 11px; color: var(--text3); margin-top: 1px; }
+  .drawer-close {
+    margin-left: auto; background: none; border: none;
+    width: 24px; height: 24px; cursor: pointer; color: var(--text3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    transition: color 0.15s;
+  }
+  .drawer-close:hover { color: var(--text); }
+
+  .chart-area {
+    height: 220px; border-bottom: 1px solid var(--border);
+    background: var(--bg); position: relative; overflow: hidden;
+  }
+  .chart-placeholder {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  .chart-tv-label { font-size: 10px; color: var(--text3); font-family: var(--mono); }
+
+  .drawer-body { flex: 1; overflow-y: auto; padding: 0; }
+  .drawer-section { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .drawer-section-label { font-size: 9px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text3); margin-bottom: 10px; }
+
+  .conditions-list { display: flex; flex-direction: column; gap: 4px; }
+  .condition-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+  }
+  .condition-row:last-child { border-bottom: none; }
+  .cond-icon { width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+  .cond-name { flex: 1; color: var(--text2); font-family: var(--mono); }
+  .cond-val { font-family: var(--mono); font-size: 11px; font-weight: 600; }
+  .cond-fired { color: var(--bull); }
+  .cond-miss { color: var(--text3); }
+
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat-box { }
+  .stat-box .label { font-size: 9px; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; }
+  .stat-box .val { font-family: var(--mono); font-size: 13px; font-weight: 600; margin-top: 2px; }
+
+  .risk-box {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    padding: 10px 12px;
+  }
+  .risk-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .risk-row:last-child { margin-bottom: 0; }
+  .risk-label { font-size: 10px; color: var(--text3); font-family: var(--mono); }
+  .risk-val { font-family: var(--mono); font-size: 12px; font-weight: 600; }
+  .risk-rr { font-size: 13px; font-weight: 700; }
+
+  .action-row { display: flex; gap: 8px; padding: 12px 16px; }
+  .action-btn {
+    flex: 1; padding: 8px;
+    font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; cursor: pointer; border: none;
+    transition: all 0.15s;
+    text-decoration: none; text-align: center;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .action-btn.primary { background: var(--bull); color: #000; }
+  .action-btn.primary:hover { filter: brightness(1.15); }
+  .action-btn.secondary { background: var(--bg3); border: 1px solid var(--border2); color: var(--text2); }
+  .action-btn.secondary:hover { border-color: var(--blue); color: var(--blue); }
+
+  /* BOTTOM STRIP */
+  .bottom-strip {
+    background: var(--bg1);
+    border-top: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .strip-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 4px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .strip-label { font-size: 9px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text3); }
+  .strip-scroll { display: flex; gap: 0; overflow-x: auto; padding: 0 0; flex: 1; align-items: stretch; }
+  .strip-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 12px;
+    border-right: 1px solid var(--border);
+    cursor: pointer; white-space: nowrap; min-width: 0;
+    transition: background 0.12s;
+    flex-shrink: 0;
+  }
+  .strip-item:hover { background: var(--bg2); }
+  .strip-ticker { font-family: var(--mono); font-size: 11px; font-weight: 700; }
+  .strip-dir { font-size: 9px; font-weight: 700; font-family: var(--mono); }
+  .strip-price { font-family: var(--mono); font-size: 10px; color: var(--text2); }
+  .strip-time { font-family: var(--mono); font-size: 9px; color: var(--text3); }
+  .win-tag { font-size: 8px; font-weight: 700; letter-spacing: 0.06em; padding: 1px 4px; cursor: pointer; }
+  .win-tag.win { background: var(--bull-dim); color: var(--bull); }
+  .win-tag.loss { background: var(--bear-dim); color: var(--bear); }
+  .win-tag.unmarked { background: var(--bg3); color: var(--text3); border: 1px solid var(--border2); }
+
+  /* mini chart */
+  .mini-chart { display: flex; align-items: flex-end; gap: 1px; height: 20px; }
+  .mini-bar { width: 3px; background: var(--border2); }
+
+  .disclaimer {
+    font-size: 9px; color: var(--text3); padding: 0 16px;
+    display: flex; align-items: center;
+    border-top: 1px solid var(--border);
+    padding: 3px 12px;
+    gap: 6px;
+  }
+
+  /* Empty state */
+  .empty-state {
+    grid-column: 1/-1;
+    padding: 60px; text-align: center; color: var(--text3);
+    font-size: 12px; font-family: var(--mono);
+  }
+
+  /* Settings drawer */
+  .settings-overlay {
+    position: fixed; inset: 0; background: rgba(10,14,26,0.7);
+    z-index: 200; display: flex; align-items: flex-end; justify-content: flex-end;
+  }
+  .settings-panel {
+    width: 340px; height: 100%;
+    background: var(--bg1); border-left: 1px solid var(--border2);
+    display: flex; flex-direction: column;
+    animation: drawerSlide 0.3s cubic-bezier(0.16,1,0.3,1);
+  }
+  .settings-header {
+    padding: 16px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .settings-title { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+  .settings-body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+  .settings-group label { font-size: 10px; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; display: block; margin-bottom: 6px; }
+  .settings-input {
+    width: 100%; padding: 8px 10px;
+    background: var(--bg3); border: 1px solid var(--border2);
+    color: var(--text); font-family: var(--mono); font-size: 11px;
+    outline: none;
+  }
+  .settings-input:focus { border-color: var(--blue); }
+  .settings-save {
+    padding: 8px; background: var(--bull); color: #000;
+    border: none; font-family: var(--mono); font-size: 11px; font-weight: 700;
+    letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer;
+    width: 100%; margin-top: 4px;
+    transition: filter 0.15s;
+  }
+  .settings-save:hover { filter: brightness(1.1); }
+
+  /* Settings gear */
+  .gear-btn {
+    margin-left: 6px; background: none; border: 1px solid var(--border);
+    padding: 4px 8px; cursor: pointer; color: var(--text3);
+    font-size: 12px; display: flex; align-items: center;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .gear-btn:hover { color: var(--text); border-color: var(--border2); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ── MOCK DATA ──────────────────────────────────────────────────────────────
+const TICKERS = [
+  { sym: 'NVDA', name: 'NVIDIA Corp', sector: 'Tech', list: 'NDX' },
+  { sym: 'AAPL', name: 'Apple Inc', sector: 'Tech', list: 'Both' },
+  { sym: 'MSFT', name: 'Microsoft Corp', sector: 'Tech', list: 'Both' },
+  { sym: 'TSLA', name: 'Tesla Inc', sector: 'EV', list: 'NDX' },
+  { sym: 'META', name: 'Meta Platforms', sector: 'Tech', list: 'NDX' },
+  { sym: 'AMD', name: 'AMD Inc', sector: 'Semis', list: 'NDX' },
+  { sym: 'AMZN', name: 'Amazon.com', sector: 'Tech', list: 'Both' },
+  { sym: 'GOOG', name: 'Alphabet Inc', sector: 'Tech', list: 'Both' },
+  { sym: 'NFLX', name: 'Netflix Inc', sector: 'Media', list: 'NDX' },
+  { sym: 'AVGO', name: 'Broadcom Inc', sector: 'Semis', list: 'NDX' },
+  { sym: 'JPM',  name: 'JPMorgan Chase', sector: 'Finance', list: 'SPX' },
+  { sym: 'BAC',  name: 'Bank of America', sector: 'Finance', list: 'SPX' },
+  { sym: 'GS',   name: 'Goldman Sachs', sector: 'Finance', list: 'SPX' },
+  { sym: 'COST', name: 'Costco Wholesale', sector: 'Retail', list: 'NDX' },
+  { sym: 'PANW', name: 'Palo Alto Networks', sector: 'Cyber', list: 'NDX' },
+  { sym: 'CRM',  name: 'Salesforce Inc', sector: 'SaaS', list: 'Both' },
+  { sym: 'ORCL', name: 'Oracle Corp', sector: 'Tech', list: 'SPX' },
+  { sym: 'UBER', name: 'Uber Technologies', sector: 'Tech', list: 'SPX' },
+  { sym: 'ARM',  name: 'Arm Holdings', sector: 'Semis', list: 'NDX' },
+  { sym: 'PLTR', name: 'Palantir Tech', sector: 'AI', list: 'NDX' },
+];
+
+const SIGNAL_TYPES = ['EMA Cross', 'VWAP Reclaim', 'RSI Momentum', 'MACD Flip', 'RVOL Spike'];
+
+function rand(min, max) { return Math.random() * (max - min) + min; }
+function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
+function pick(arr) { return arr[randInt(0, arr.length - 1)]; }
+
+function generateSignal(id) {
+  const ticker = pick(TICKERS);
+  const dir = Math.random() > 0.5 ? 'bull' : 'bear';
+  const price = parseFloat(rand(50, 1200).toFixed(2));
+  const pct = parseFloat((dir === 'bull' ? rand(0.3, 3.5) : -rand(0.3, 3.5)).toFixed(2));
+  const rvol = parseFloat(rand(1.2, 4.5).toFixed(1));
+  const strength = randInt(45, 98);
+  const type = pick(SIGNAL_TYPES);
+  const now = new Date();
+  const minutesAgo = randInt(0, 29);
+  const triggered = new Date(now.getTime() - minutesAgo * 60000);
+
+  // conditions
+  const ema = { fired: Math.random() > 0.35, val: `EMA9 ${dir === 'bull' ? '>' : '<'} EMA21` };
+  const vwap = { fired: Math.random() > 0.3, val: `${dir === 'bull' ? 'Above' : 'Below'} VWAP` };
+  const rsi = { fired: Math.random() > 0.4, val: `RSI ${randInt(dir === 'bull' ? 50 : 30, dir === 'bull' ? 68 : 49)}` };
+  const rvolC = { fired: rvol >= 1.5, val: `RVOL ${rvol}x` };
+  const macd = { fired: Math.random() > 0.45, val: `MACD hist ${dir === 'bull' ? '+' : '-'}${rand(0.01, 0.5).toFixed(3)}` };
+
+  const atr = parseFloat(rand(1.5, 8).toFixed(2));
+  const stop = dir === 'bull' ? (price - atr).toFixed(2) : (price + atr).toFixed(2);
+  const target = dir === 'bull' ? (price + atr * 2).toFixed(2) : (price - atr * 2).toFixed(2);
+
+  return {
+    id, ticker: ticker.sym, company: ticker.name, sector: ticker.sector, list: ticker.list,
+    dir, price, pct, rvol, strength, type, triggered, minutesAgo,
+    conditions: { ema, vwap, rsi, rvol: rvolC, macd },
+    atr, stop, target,
+    dayRange: `${(price * rand(0.92, 0.97)).toFixed(2)} – ${(price * rand(1.02, 1.08)).toFixed(2)}`,
+    pmRange: `${(price * rand(0.97, 0.99)).toFixed(2)} – ${(price * rand(1.01, 1.03)).toFixed(2)}`,
+    earnings: pick(['May 7', 'May 14', 'Jun 3', 'Jun 18', 'N/A', 'N/A']),
+    outcome: null,
+  };
+}
+
+function genInitialSignals() {
+  return Array.from({ length: 18 }, (_, i) => generateSignal(i));
+}
+
+// ── CLOCK ──────────────────────────────────────────────────────────────────
+function useClock() {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return now;
+}
+
+function formatNY(d) {
+  return d.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+function formatIST(d) {
+  return d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+// ── INDEX PRICES ───────────────────────────────────────────────────────────
+function useIndexPrices() {
+  const [prices, setPrices] = useState({
+    SPX: { val: 5612.84, chg: 0.68 },
+    NDX: { val: 19847.32, chg: 1.12 },
+    VIX: { val: 14.83, chg: -0.22 },
+  });
+  const [ticks, setTicks] = useState({});
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setPrices(prev => {
+        const next = {};
+        const tickNext = {};
+        for (const [k, v] of Object.entries(prev)) {
+          const delta = rand(-0.08, 0.08);
+          const newVal = parseFloat((v.val + delta).toFixed(2));
+          tickNext[k] = delta > 0 ? 'up' : 'down';
+          next[k] = { val: newVal, chg: parseFloat((v.chg + rand(-0.02, 0.02)).toFixed(2)) };
+        }
+        setTicks(tickNext);
+        setTimeout(() => setTicks({}), 600);
+        return next;
+      });
+    }, 2000);
+    return () => clearInterval(t);
+  }, []);
+
+  return { prices, ticks };
+}
+
+// ── MINI CHART ─────────────────────────────────────────────────────────────
+function MiniChart({ bull, bars = 20 }) {
+  const data = useRef(Array.from({ length: bars }, () => randInt(30, 90)));
+  return (
+    <div className="mini-chart">
+      {data.current.map((h, i) => (
+        <div key={i} className="mini-bar" style={{
+          height: h + '%',
+          background: i === bars - 1 ? (bull ? 'var(--bull)' : 'var(--bear)') : 'var(--border2)',
+          opacity: i < bars - 3 ? 0.5 : 1,
+        }} />
+      ))}
+    </div>
+  );
+}
+
+// ── SIGNAL CARD ────────────────────────────────────────────────────────────
+function ScoreBar({ score, bull }) {
+  const segs = 8;
+  const filled = Math.round((score / 100) * segs);
+  return (
+    <div className="score-bar">
+      {Array.from({ length: segs }, (_, i) => (
+        <div key={i} className={`score-seg ${i < filled ? `filled ${bull ? 'bull' : 'bear'}` : ''}`} />
+      ))}
+    </div>
+  );
+}
+
+function timeAgo(d) {
+  const mins = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  return `${Math.floor(mins / 60)}h ${mins % 60}m ago`;
+}
+
+function SignalCard({ sig, selected, onClick }) {
+  const bull = sig.dir === 'bull';
+  return (
+    <div
+      className={`signal-card ${bull ? 'bull' : 'bear'} ${selected ? 'selected' : ''}`}
+      onClick={onClick}
+      style={selected ? { boxShadow: bull ? 'var(--bull-glow)' : 'var(--bear-glow)' } : {}}
+    >
+      <div className="card-top">
+        <div className="ticker-block">
+          <div className="ticker" style={{ color: bull ? 'var(--bull)' : 'var(--bear)' }}>{sig.ticker}</div>
+          <div className="company">{sig.company}</div>
+        </div>
+        <div className={`dir-tag ${bull ? 'bull' : 'bear'}`}>
+          <span style={{ fontSize: 8 }}>{bull ? '▲' : '▼'}</span>
+          {bull ? 'LONG' : 'SHORT'}
+        </div>
+      </div>
+
+      <div className="card-mid">
+        <div className="card-stat">
+          <div className="stat-label">Price</div>
+          <div className="stat-val" style={{ fontFamily: 'var(--mono)' }}>${sig.price.toLocaleString()}</div>
+        </div>
+        <div className="card-stat">
+          <div className="stat-label">% Move</div>
+          <div className={`stat-val ${bull ? 'bull' : 'bear'}`}>{sig.pct > 0 ? '+' : ''}{sig.pct}%</div>
+        </div>
+        <div className="card-stat">
+          <div className="stat-label">RVOL</div>
+          <div className={`stat-val ${sig.rvol >= 2 ? 'amber' : ''}`}>{sig.rvol}x</div>
+        </div>
+      </div>
+
+      <div className="card-bottom">
+        <div className="signal-type-tag">{sig.type}</div>
+        <div className="strength-score">
+          <ScoreBar score={sig.strength} bull={bull} />
+          <span className="score-num">{sig.strength}</span>
+        </div>
+      </div>
+
+      <div className="card-footer">
+        <span className="time-ago">{timeAgo(sig.triggered)}</span>
+        <a
+          className="tv-btn"
+          href={`https://www.tradingview.com/chart/?symbol=NASDAQ:${sig.ticker}`}
+          target="_blank"
+          onClick={e => e.stopPropagation()}
+          rel="noreferrer"
+        >
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+            <path d="M1 7L7 1M7 1H3M7 1V5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="square"/>
+          </svg>
+          TradingView
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// ── CANDLESTICK CHART (SVG mock) ───────────────────────────────────────────
+function MockChart({ sig }) {
+  const bull = sig.dir === 'bull';
+  const W = 420, H = 220;
+  const bars = 40;
+  const barW = (W - 40) / bars;
+  const priceBase = sig.price;
+
+  const candles = useRef(Array.from({ length: bars }, (_, i) => {
+    const o = priceBase + rand(-8, 8);
+    const c = i === bars - 1 ? priceBase : o + rand(-4, 4);
+    const h = Math.max(o, c) + rand(0.5, 2);
+    const l = Math.min(o, c) - rand(0.5, 2);
+    return { o, c, h, l };
+  }));
+
+  const allPrices = candles.current.flatMap(c => [c.h, c.l]);
+  const minP = Math.min(...allPrices);
+  const maxP = Math.max(...allPrices);
+  const scaleY = v => H - 20 - ((v - minP) / (maxP - minP)) * (H - 40);
+
+  return (
+    <svg width={W} height={H} style={{ display: 'block' }}>
+      {/* Grid lines */}
+      {[0.25, 0.5, 0.75].map(f => (
+        <line key={f} x1="30" x2={W} y1={20 + f * (H - 40)} y2={20 + f * (H - 40)}
+          stroke="var(--border)" strokeWidth="0.5" strokeDasharray="3,3" />
+      ))}
+      {/* VWAP line */}
+      <path
+        d={candles.current.map((c, i) => `${i === 0 ? 'M' : 'L'}${30 + i * barW + barW / 2},${scaleY(c.o + rand(-1, 1))}`).join(' ')}
+        fill="none" stroke="var(--amber)" strokeWidth="1" strokeDasharray="4,2" opacity="0.7"
+      />
+      {/* Candles */}
+      {candles.current.map((c, i) => {
+        const x = 30 + i * barW;
+        const isBull = c.c >= c.o;
+        const color = isBull ? 'var(--bull)' : 'var(--bear)';
+        const bodyTop = scaleY(Math.max(c.o, c.c));
+        const bodyH = Math.max(1, Math.abs(scaleY(c.o) - scaleY(c.c)));
+        return (
+          <g key={i}>
+            <line x1={x + barW / 2} x2={x + barW / 2} y1={scaleY(c.h)} y2={scaleY(c.l)}
+              stroke={color} strokeWidth="0.8" opacity={i < bars - 6 ? 0.6 : 1} />
+            <rect x={x + 1} y={bodyTop} width={barW - 2} height={bodyH}
+              fill={isBull ? color : color} fillOpacity={i < bars - 6 ? 0.5 : 0.85} />
+          </g>
+        );
+      })}
+      {/* Price label */}
+      <text x={W - 4} y={scaleY(priceBase) + 4} fontSize="9" fill={bull ? 'var(--bull)' : 'var(--bear)'}
+        fontFamily="var(--mono)" textAnchor="end">${sig.price}</text>
+      {/* Labels */}
+      <text x="4" y="12" fontSize="9" fill="var(--text3)" fontFamily="var(--mono)">10m</text>
+      <text x={W / 2} y="12" fontSize="9" fill="var(--amber)" fontFamily="var(--mono)" textAnchor="middle">— VWAP</text>
+    </svg>
+  );
+}
+
+// ── DETAIL DRAWER ──────────────────────────────────────────────────────────
+function DetailDrawer({ sig, onClose, onOutcome }) {
+  if (!sig) return null;
+  const bull = sig.dir === 'bull';
+  const rr = '2.0';
+
+  const condList = [
+    { label: 'EMA 9/21 Cross', ...sig.conditions.ema },
+    { label: 'Price vs VWAP', ...sig.conditions.vwap },
+    { label: `RSI(14) Momentum`, ...sig.conditions.rsi },
+    { label: `RVOL vs 20-avg`, ...sig.conditions.rvol },
+    { label: 'MACD Histogram', ...sig.conditions.macd },
+  ];
+
+  const firedCount = condList.filter(c => c.fired).length;
+
+  return (
+    <div className="detail-drawer">
+      <div className="drawer-header">
+        <div>
+          <div className="drawer-ticker" style={{ color: bull ? 'var(--bull)' : 'var(--bear)' }}>
+            {sig.ticker}
+            <span style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--sans)', fontWeight: 400, marginLeft: 8 }}>
+              {sig.sector}
+            </span>
+          </div>
+          <div className="drawer-company">{sig.company}</div>
+        </div>
+        <div className={`dir-tag ${bull ? 'bull' : 'bear'}`} style={{ marginLeft: 'auto', marginRight: 8 }}>
+          {bull ? '▲ LONG' : '▼ SHORT'}
+        </div>
+        <button className="drawer-close" onClick={onClose}>✕</button>
+      </div>
+
+      <div className="chart-area">
+        <MockChart sig={sig} />
+      </div>
+
+      <div className="drawer-body">
+        {/* Signal rationale */}
+        <div className="drawer-section">
+          <div className="drawer-section-label">Signal Rationale — {firedCount}/5 conditions fired</div>
+          <div className="conditions-list">
+            {condList.map((c, i) => (
+              <div key={i} className="condition-row">
+                <div className="cond-icon">{c.fired ? (bull ? '✦' : '✦') : '○'}</div>
+                <div className="cond-name" style={{ color: c.fired ? 'var(--text)' : 'var(--text3)' }}>{c.label}</div>
+                <div className={`cond-val ${c.fired ? 'cond-fired' : 'cond-miss'}`}
+                  style={{ color: c.fired ? (bull ? 'var(--bull)' : 'var(--bear)') : 'var(--text3)' }}>
+                  {c.val}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Quick stats */}
+        <div className="drawer-section">
+          <div className="drawer-section-label">Quick Stats</div>
+          <div className="stats-grid">
+            <div className="stat-box">
+              <div className="label">ATR(14)</div>
+              <div className="val">${sig.atr}</div>
+            </div>
+            <div className="stat-box">
+              <div className="label">RVOL</div>
+              <div className="val" style={{ color: sig.rvol >= 2 ? 'var(--amber)' : 'var(--text)' }}>{sig.rvol}x</div>
+            </div>
+            <div className="stat-box">
+              <div className="label">Day Range</div>
+              <div className="val" style={{ fontSize: 10 }}>{sig.dayRange}</div>
+            </div>
+            <div className="stat-box">
+              <div className="label">Pre-mkt Range</div>
+              <div className="val" style={{ fontSize: 10 }}>{sig.pmRange}</div>
+            </div>
+            <div className="stat-box">
+              <div className="label">Sector</div>
+              <div className="val" style={{ fontSize: 11 }}>{sig.sector}</div>
+            </div>
+            <div className="stat-box">
+              <div className="label">Earnings</div>
+              <div className="val" style={{ fontSize: 11, color: sig.earnings !== 'N/A' ? 'var(--amber)' : 'var(--text)' }}>{sig.earnings}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Risk box */}
+        <div className="drawer-section">
+          <div className="drawer-section-label">Risk / Reward (1×ATR / 2×ATR)</div>
+          <div className="risk-box">
+            <div className="risk-row">
+              <span className="risk-label">Entry</span>
+              <span className="risk-val">${sig.price}</span>
+            </div>
+            <div className="risk-row">
+              <span className="risk-label">Stop (1×ATR)</span>
+              <span className="risk-val" style={{ color: 'var(--bear)' }}>${sig.stop}</span>
+            </div>
+            <div className="risk-row">
+              <span className="risk-label">Target (2×ATR)</span>
+              <span className="risk-val" style={{ color: 'var(--bull)' }}>${sig.target}</span>
+            </div>
+            <div className="risk-row" style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border2)' }}>
+              <span className="risk-label">R:R Ratio</span>
+              <span className="risk-val risk-rr" style={{ color: 'var(--amber)' }}>1:{rr}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Outcome tagging */}
+        <div className="drawer-section">
+          <div className="drawer-section-label">Mark Outcome</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              className="win-tag win"
+              style={{ padding: '6px 16px', fontSize: 10, cursor: 'pointer', border: 'none', fontFamily: 'var(--mono)', fontWeight: 700 }}
+              onClick={() => onOutcome(sig.id, 'win')}
+            >▲ WIN</button>
+            <button
+              className="win-tag loss"
+              style={{ padding: '6px 16px', fontSize: 10, cursor: 'pointer', border: 'none', fontFamily: 'var(--mono)', fontWeight: 700 }}
+              onClick={() => onOutcome(sig.id, 'loss')}
+            >▼ LOSS</button>
+            <button
+              className="win-tag unmarked"
+              style={{ padding: '6px 16px', fontSize: 10, cursor: 'pointer', background: 'transparent', fontFamily: 'var(--mono)', fontWeight: 700 }}
+              onClick={() => onOutcome(sig.id, null)}
+            >— CLEAR</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="action-row">
+        <a
+          className="action-btn primary"
+          href={`https://www.tradingview.com/chart/?symbol=NASDAQ:${sig.ticker}`}
+          target="_blank" rel="noreferrer"
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M2 10L10 2M10 2H5M10 2V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square"/>
+          </svg>
+          Trade on TradingView
+        </a>
+        <button className="action-btn secondary" onClick={onClose}>Dismiss</button>
+      </div>
+    </div>
+  );
+}
+
+// ── SETTINGS PANEL ─────────────────────────────────────────────────────────
+function SettingsPanel({ onClose }) {
+  const [polyKey, setPolyKey] = useState(() => localStorage.getItem('poly_key') || '');
+  const [tdKey, setTdKey] = useState(() => localStorage.getItem('td_key') || '');
+
+  const save = () => {
+    localStorage.setItem('poly_key', polyKey);
+    localStorage.setItem('td_key', tdKey);
+    onClose();
+  };
+
+  return (
+    <div className="settings-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="settings-panel">
+        <div className="settings-header">
+          <span className="settings-title">Settings</span>
+          <button className="drawer-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="settings-body">
+          <div className="settings-group">
+            <label>Polygon.io API Key</label>
+            <input className="settings-input" type="password" placeholder="Enter your Polygon.io key..."
+              value={polyKey} onChange={e => setPolyKey(e.target.value)} />
+          </div>
+          <div className="settings-group">
+            <label>Twelve Data API Key</label>
+            <input className="settings-input" type="password" placeholder="Enter your Twelve Data key..."
+              value={tdKey} onChange={e => setTdKey(e.target.value)} />
+          </div>
+          <div className="settings-group">
+            <label>Scan Interval</label>
+            <select className="settings-input" defaultValue="10">
+              <option value="5">5 minutes</option>
+              <option value="10">10 minutes</option>
+              <option value="15">15 minutes</option>
+            </select>
+          </div>
+          <div className="settings-group">
+            <label>Default Universe</label>
+            <select className="settings-input" defaultValue="Both">
+              <option>NASDAQ 100</option>
+              <option>S&amp;P 500</option>
+              <option>Both</option>
+            </select>
+          </div>
+          <button className="settings-save" onClick={save}>Save Settings</button>
+          <p style={{ fontSize: 10, color: 'var(--text3)', lineHeight: 1.6 }}>
+            API keys are stored in localStorage only — never sent to any server.
+            Keys are used client-side to fetch live market data.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── BOTTOM STRIP ───────────────────────────────────────────────────────────
+function BottomStrip({ history, onOutcome, onSelect }) {
+  return (
+    <div className="bottom-strip">
+      <div className="strip-header">
+        <span className="strip-label">Signal History</span>
+        <span style={{ fontSize: 9, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>
+          Last {history.length} · {history.filter(s => s.outcome === 'win').length}W / {history.filter(s => s.outcome === 'loss').length}L
+        </span>
+      </div>
+      <div className="strip-scroll">
+        {history.map(sig => (
+          <div key={sig.id} className="strip-item" onClick={() => onSelect(sig)}>
+            <span className="strip-ticker" style={{ color: sig.dir === 'bull' ? 'var(--bull)' : 'var(--bear)' }}>{sig.ticker}</span>
+            <span className="strip-dir" style={{ color: sig.dir === 'bull' ? 'var(--bull)' : 'var(--bear)' }}>
+              {sig.dir === 'bull' ? '▲' : '▼'}
+            </span>
+            <span className="strip-price">${sig.price}</span>
+            <span className="strip-time">{sig.minutesAgo}m ago</span>
+            <span
+              className={`win-tag ${sig.outcome || 'unmarked'}`}
+              onClick={e => {
+                e.stopPropagation();
+                onOutcome(sig.id, sig.outcome === 'win' ? 'loss' : sig.outcome === 'loss' ? null : 'win');
+              }}
+            >
+              {sig.outcome === 'win' ? '▲W' : sig.outcome === 'loss' ? '▼L' : '—'}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── MAIN APP ───────────────────────────────────────────────────────────────
+function App() {
+  const [signals, setSignals] = useState(() => genInitialSignals());
+  const [history, setHistory] = useState(() => genInitialSignals().slice(0, 12).map((s, i) => ({ ...s, id: 100 + i, minutesAgo: 30 + i * 3 })));
+  const [selected, setSelected] = useState(null);
+  const [listFilter, setListFilter] = useState('Both');
+  const [dirFilter, setDirFilter] = useState('Both');
+  const [strengthFilter, setStrengthFilter] = useState('All');
+  const [sortBy, setSortBy] = useState('fresh');
+  const [showSettings, setShowSettings] = useState(false);
+  const [nextId, setNextId] = useState(200);
+  const [scanCountdown, setScanCountdown] = useState(600);
+  const now = useClock();
+  const { prices, ticks } = useIndexPrices();
+  const [{ tweaks }, setTweak] = useState({ tweaks: {} });
+
+  // Simulate new signals arriving
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (Math.random() > 0.5) {
+        const newSig = generateSignal(nextId);
+        setNextId(n => n + 1);
+        setSignals(prev => [newSig, ...prev].slice(0, 40));
+      }
+    }, 8000);
+    return () => clearInterval(t);
+  }, [nextId]);
+
+  // Countdown to next scan
+  useEffect(() => {
+    const t = setInterval(() => {
+      setScanCountdown(prev => {
+        if (prev <= 1) return 600;
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  // VIX risk tag
+  const vixVal = prices.VIX.val;
+  const riskOn = vixVal < 20;
+  const riskAmber = vixVal >= 20 && vixVal < 30;
+
+  // Filter signals
+  let filtered = signals.filter(s => {
+    if (listFilter !== 'Both' && s.list !== listFilter && s.list !== 'Both') return false;
+    if (dirFilter !== 'Both' && s.dir !== (dirFilter === 'Bullish' ? 'bull' : 'bear')) return false;
+    if (strengthFilter === 'Strong' && s.strength < 75) return false;
+    if (strengthFilter === 'Moderate' && (s.strength < 50 || s.strength >= 75)) return false;
+    if (strengthFilter === 'Weak' && s.strength >= 50) return false;
+    return true;
+  });
+
+  if (sortBy === 'fresh') {
+    filtered = [...filtered].sort((a, b) => b.triggered - a.triggered);
+  } else {
+    filtered = [...filtered].sort((a, b) => b.strength - a.strength);
+  }
+
+  const handleOutcome = (id, outcome) => {
+    setSignals(prev => prev.map(s => s.id === id ? { ...s, outcome } : s));
+    setHistory(prev => prev.map(s => s.id === id ? { ...s, outcome } : s));
+    if (selected && selected.id === id) setSelected(s => ({ ...s, outcome }));
+  };
+
+  const selectSig = sig => setSelected(s => s && s.id === sig.id ? null : sig);
+
+  const countdownMin = Math.floor(scanCountdown / 60);
+  const countdownSec = scanCountdown % 60;
+
+  return (
+    <div className="app">
+      {/* TOP BAR */}
+      <div className="topbar">
+        <div className="logo-zone">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <rect x="1" y="1" width="18" height="18" stroke="var(--bull)" strokeWidth="1"/>
+            <path d="M3 14 L7 8 L10 11 L13 6 L17 9" stroke="var(--bull)" strokeWidth="1.5" strokeLinecap="square"/>
+            <circle cx="17" cy="9" r="2" fill="var(--bull)"/>
+          </svg>
+          <span className="logo-text">Pulse<span>Desk</span></span>
+        </div>
+
+        <div className="topbar-section" style={{ gap: 20 }}>
+          <div className="clock-block">
+            <div className="clock-label">NY</div>
+            <div className="clock-time">{formatNY(now)}</div>
+          </div>
+          <div className="clock-block">
+            <div className="clock-label">IST</div>
+            <div className="clock-time">{formatIST(now)}</div>
+          </div>
+        </div>
+
+        {[
+          { key: 'SPX', label: 'SPX' },
+          { key: 'NDX', label: 'NDX' },
+          { key: 'VIX', label: 'VIX' },
+        ].map(({ key, label }) => {
+          const p = prices[key];
+          const up = p.chg >= 0;
+          return (
+            <div key={key} className="topbar-section">
+              <div className="index-pill">
+                <span className="index-name">{label}</span>
+                <span className="index-val" style={{
+                  color: ticks[key] === 'up' ? 'var(--bull)' : ticks[key] === 'down' ? 'var(--bear)' : 'var(--text)',
+                  transition: 'color 0.4s',
+                }}>
+                  {p.val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+                <span className="index-chg" style={{ color: up ? 'var(--bull)' : 'var(--bear)' }}>
+                  {up ? '+' : ''}{p.chg}%
+                </span>
+              </div>
+            </div>
+          );
+        })}
+
+        <div className="risk-tag" style={{
+          borderColor: riskOn ? 'var(--bull)' : riskAmber ? 'var(--amber)' : 'var(--bear)',
+          color: riskOn ? 'var(--bull)' : riskAmber ? 'var(--amber)' : 'var(--bear)',
+        }}>
+          <div className="risk-dot" style={{ background: riskOn ? 'var(--bull)' : riskAmber ? 'var(--amber)' : 'var(--bear)' }} />
+          {riskOn ? 'RISK-ON' : riskAmber ? 'CAUTION' : 'RISK-OFF'}
+          <span style={{ color: 'var(--text3)', fontSize: 9 }}>VIX {vixVal.toFixed(2)}</span>
+        </div>
+
+        <div className="scan-badge">
+          <div className="scan-dot" />
+          SCAN IN {String(countdownMin).padStart(2, '0')}:{String(countdownSec).padStart(2, '0')}
+        </div>
+
+        <button className="gear-btn" onClick={() => setShowSettings(true)}>⚙</button>
+      </div>
+
+      {/* BODY */}
+      <div className="body">
+        {/* LEFT RAIL */}
+        <div className="left-rail">
+          <div className="rail-section">
+            <div className="rail-label">Universe</div>
+            {['NASDAQ 100', 'S&P 500', 'Both'].map(opt => (
+              <button
+                key={opt}
+                className={`rail-btn ${listFilter === (opt === 'NASDAQ 100' ? 'NDX' : opt === 'S&P 500' ? 'SPX' : 'Both') ? 'active' : ''}`}
+                onClick={() => setListFilter(opt === 'NASDAQ 100' ? 'NDX' : opt === 'S&P 500' ? 'SPX' : 'Both')}
+              >{opt}</button>
+            ))}
+            <button className={`rail-btn ${listFilter === 'Custom' ? 'active' : ''}`} onClick={() => setListFilter('Custom')}>Custom</button>
+          </div>
+
+          <div className="rail-section">
+            <div className="rail-label">Direction</div>
+            {['Both', 'Bullish', 'Bearish'].map(opt => (
+              <button
+                key={opt}
+                className={`rail-btn ${dirFilter === opt ? (opt === 'Bullish' ? 'active' : opt === 'Bearish' ? 'active-bear' : 'active') : ''}`}
+                onClick={() => setDirFilter(opt)}
+                style={{ color: dirFilter === opt ? (opt === 'Bullish' ? 'var(--bull)' : opt === 'Bearish' ? 'var(--bear)' : undefined) : undefined }}
+              >{opt}</button>
+            ))}
+          </div>
+
+          <div className="rail-section">
+            <div className="rail-label">Strength</div>
+            {[
+              { label: 'All', dots: 0 },
+              { label: 'Strong', dots: 3 },
+              { label: 'Moderate', dots: 2 },
+              { label: 'Weak', dots: 1 },
+            ].map(({ label, dots }) => (
+              <div
+                key={label}
+                className={`strength-bar ${strengthFilter === label ? 'active' : ''}`}
+                onClick={() => setStrengthFilter(label)}
+              >
+                <div className="strength-dots">
+                  {[1, 2, 3].map(d => (
+                    <div key={d} className={`strength-dot ${d <= dots ? 'filled' : ''}`} />
+                  ))}
+                </div>
+                <span className="strength-label">{label}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="rail-section">
+            <div className="rail-label">Session</div>
+            {['Regular', 'Pre-market', 'After-hours'].map(opt => (
+              <button key={opt} className="rail-btn">{opt}</button>
+            ))}
+          </div>
+
+          {/* Signal count summary */}
+          <div className="rail-section" style={{ marginTop: 'auto' }}>
+            <div className="rail-label">Active Signals</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '0 4px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                <span style={{ color: 'var(--bull)', fontFamily: 'var(--mono)' }}>
+                  ▲ {signals.filter(s => s.dir === 'bull').length} LONG
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                <span style={{ color: 'var(--bear)', fontFamily: 'var(--mono)' }}>
+                  ▼ {signals.filter(s => s.dir === 'bear').length} SHORT
+                </span>
+              </div>
+              <div style={{ marginTop: 6, height: 3, background: 'var(--border2)', position: 'relative', overflow: 'hidden' }}>
+                <div style={{
+                  position: 'absolute', left: 0, top: 0, height: '100%',
+                  width: `${(signals.filter(s => s.dir === 'bull').length / signals.length) * 100}%`,
+                  background: 'var(--bull)',
+                }} />
+              </div>
+              <div style={{ fontSize: 9, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>
+                Market bias: {signals.filter(s => s.dir === 'bull').length > signals.length / 2 ? 'BULLISH' : 'BEARISH'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* MAIN */}
+        <div className="main">
+          <div className="signal-board">
+            <div className="board-header">
+              <span className="board-title">Signal Board</span>
+              <span className="count-badge">{filtered.length} signals</span>
+              <span style={{ fontSize: 9, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>
+                10-min timeframe
+              </span>
+              <div className="sort-tabs">
+                <button className={`sort-tab ${sortBy === 'fresh' ? 'active' : ''}`} onClick={() => setSortBy('fresh')}>Freshness</button>
+                <button className={`sort-tab ${sortBy === 'strength' ? 'active' : ''}`} onClick={() => setSortBy('strength')}>Strength</button>
+              </div>
+            </div>
+
+            <div className="signal-grid">
+              {filtered.length === 0 ? (
+                <div className="empty-state">
+                  No signals match current filters.<br/>
+                  <span style={{ color: 'var(--text3)', fontSize: 10 }}>Adjust filters or wait for next scan.</span>
+                </div>
+              ) : filtered.map(sig => (
+                <SignalCard
+                  key={sig.id}
+                  sig={sig}
+                  selected={selected && selected.id === sig.id}
+                  onClick={() => selectSig(sig)}
+                />
+              ))}
+            </div>
+          </div>
+
+          {selected && (
+            <DetailDrawer
+              sig={selected}
+              onClose={() => setSelected(null)}
+              onOutcome={handleOutcome}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* BOTTOM STRIP */}
+      <BottomStrip history={history} onOutcome={handleOutcome} onSelect={selectSig} />
+
+      {/* SETTINGS */}
+      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
